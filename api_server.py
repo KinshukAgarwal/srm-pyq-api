@@ -10,6 +10,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import boto3
 from botocore.client import Config as BotoConfig
@@ -63,12 +64,34 @@ COURSE_FIELDS = "id,course_code,course_name,department,program,semester,is_activ
 COURSE_MIN_FIELDS = "id,course_code,course_name"
 
 
+def normalize_public_base_url(raw_url: str) -> str:
+    return raw_url.strip().rstrip("/")
+
+
+def encode_object_key(object_key: str) -> str:
+    cleaned = object_key.strip().lstrip("/")
+    if not cleaned:
+        return ""
+    return "/".join(quote(part, safe="") for part in cleaned.split("/"))
+
+
 def derive_public_url(file_row: dict[str, Any]) -> str:
-    public_base = get_env("R2_PUBLIC_BASE_URL", "R2_PUBLIC_URL")
-    object_key = (file_row.get("object_key") or "").strip().lstrip("/")
+    storage_provider = (file_row.get("storage_provider") or "").strip().lower()
+    if storage_provider and storage_provider != "r2":
+        return ""
+
+    public_base = normalize_public_base_url(get_env("R2_PUBLIC_BASE_URL", "R2_PUBLIC_URL"))
+    object_key = encode_object_key(file_row.get("object_key") or "")
     if not public_base or not object_key:
         return ""
-    return f"{public_base.rstrip('/')}/{object_key}"
+    return f"{public_base}/{object_key}"
+
+
+def with_computed_public_url(file_row: dict[str, Any]) -> dict[str, Any]:
+    public_url = (file_row.get("public_url") or "").strip() or derive_public_url(file_row)
+    if public_url:
+        return {**file_row, "public_url": public_url}
+    return file_row
 
 
 def get_r2_client() -> Any:
@@ -242,7 +265,7 @@ def list_paper_files(paper_id: str) -> dict[str, Any]:
         .execute()
     )
     rows = response.data or []
-    return {"data": rows}
+    return {"data": [with_computed_public_url(row) for row in rows]}
 
 
 @app.get("/v1/files/{file_id}/download")
@@ -262,7 +285,8 @@ def get_file_download(file_id: str, ttl_seconds: int = Query(default=900, ge=60,
 
     file_row = rows[0]
 
-    public_url = (file_row.get("public_url") or "").strip() or derive_public_url(file_row)
+    file_row = with_computed_public_url(file_row)
+    public_url = (file_row.get("public_url") or "").strip()
     if public_url:
         return {
             "data": {

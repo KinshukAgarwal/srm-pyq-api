@@ -236,6 +236,9 @@ Response shape:
 }
 ```
 
+Behavior note:
+- For `storage_provider = r2`, `public_url` may be computed at response time using `R2_PUBLIC_BASE_URL + object_key` when DB `public_url` is null.
+
 ---
 
 ### GET /v1/files/{file_id}/download
@@ -261,6 +264,10 @@ Response shape:
 Errors:
 - 404 if file_id not found
 - 422 if ttl_seconds is out of allowed range
+
+Public URL priority:
+- If `public_url` is available (stored or computed), response returns `url_type = public` and `expires_in = null`.
+- Otherwise API falls back to signed URL flow (`url_type = signed`).
 
 ---
 
