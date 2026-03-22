@@ -63,6 +63,14 @@ COURSE_FIELDS = "id,course_code,course_name,department,program,semester,is_activ
 COURSE_MIN_FIELDS = "id,course_code,course_name"
 
 
+def derive_public_url(file_row: dict[str, Any]) -> str:
+    public_base = get_env("R2_PUBLIC_BASE_URL", "R2_PUBLIC_URL")
+    object_key = (file_row.get("object_key") or "").strip().lstrip("/")
+    if not public_base or not object_key:
+        return ""
+    return f"{public_base.rstrip('/')}/{object_key}"
+
+
 def get_r2_client() -> Any:
     endpoint = get_env("R2_ENDPOINT_URL", "CLOUDFLARER2_S3_API")
     if not endpoint:
@@ -254,11 +262,12 @@ def get_file_download(file_id: str, ttl_seconds: int = Query(default=900, ge=60,
 
     file_row = rows[0]
 
-    if file_row.get("public_url"):
+    public_url = (file_row.get("public_url") or "").strip() or derive_public_url(file_row)
+    if public_url:
         return {
             "data": {
                 "file_id": file_row["id"],
-                "download_url": file_row["public_url"],
+                "download_url": public_url,
                 "url_type": "public",
                 "expires_in": None,
             }
