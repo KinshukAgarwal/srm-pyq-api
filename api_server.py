@@ -15,6 +15,7 @@ from urllib.parse import quote
 import boto3
 from botocore.client import Config as BotoConfig
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from supabase import create_client
 
@@ -40,6 +41,13 @@ def get_env(*keys: str) -> str:
         if value:
             return value
     return ""
+
+
+def get_env_list(*keys: str) -> list[str]:
+    raw = get_env(*keys)
+    if not raw:
+        return []
+    return [item.strip() for item in raw.split(",") if item.strip()]
 
 load_env_file(Path(".env"))
 
@@ -116,6 +124,17 @@ def get_r2_client() -> Any:
 
 
 app = FastAPI(title="SRM PYQ API", version="1.0.0")
+
+cors_origins = get_env_list("CORS_ALLOW_ORIGINS") or [
+    "https://srm-pyq-explorer.vercel.app",
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
