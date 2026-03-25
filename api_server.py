@@ -145,7 +145,7 @@ def health() -> dict[str, Any]:
 @app.get("/v1/courses")
 def list_courses(
     q: str = Query(default="", description="Search by course_code/course_name"),
-    cursor: str = Query(default="", description="Cursor = last seen id"),
+    cursor: str = Query(default="", description="Cursor = last seen course_code"),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> dict[str, Any]:
     query = supabase.table("courses").select(COURSE_FIELDS)
@@ -155,15 +155,15 @@ def list_courses(
         query = query.or_(f"course_code.ilike.%{escaped}%,course_name.ilike.%{escaped}%")
 
     if cursor:
-        query = query.gt("id", cursor)
+        query = query.gt("course_code", cursor)
 
-    response = query.order("course_code").order("id").limit(limit + 1).execute()
+    response = query.order("course_code").limit(limit + 1).execute()
     rows = response.data or []
     has_more = len(rows) > limit
     if has_more:
         rows = rows[:limit]
 
-    next_cursor = rows[-1]["id"] if has_more and rows else None
+    next_cursor = rows[-1]["course_code"] if has_more and rows else None
     return {
         "data": rows,
         "page": {
