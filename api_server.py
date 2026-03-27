@@ -137,6 +137,24 @@ app.add_middleware(
 )
 
 
+def normalize_metadata(metadata_json: Any) -> dict[str, Any] | None:
+    if not isinstance(metadata_json, dict):
+        return None
+
+    semester = metadata_json.get("semester")
+    if isinstance(semester, int):
+        semester = [semester]
+    if not isinstance(semester, list):
+        semester = None
+
+    return {
+        "exam_month": metadata_json.get("exam_month"),
+        "exam_year": metadata_json.get("exam_year"),
+        "semester": semester,
+        "page_found": metadata_json.get("page_found"),
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"ok": True}
@@ -263,12 +281,10 @@ def get_paper(paper_id: str) -> dict[str, Any]:
     )
     course_rows = course.data or []
 
-    return {
-        "data": {
-            **paper,
-            "course": course_rows[0] if course_rows else None,
-        }
-    }
+    paper_out = {k: v for k, v in paper.items() if k != "metadata_json"}
+    paper_out["metadata"] = normalize_metadata(paper.get("metadata_json"))
+    paper_out["course"] = course_rows[0] if course_rows else None
+    return {"data": paper_out}
 
 
 @app.get("/v1/papers/{paper_id}/files")
