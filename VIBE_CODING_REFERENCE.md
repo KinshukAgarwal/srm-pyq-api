@@ -204,11 +204,11 @@ Response shape:
       "source_subject_url": "string|null",
       "source_item_url": "string",
       "publisher": "string|null",
-      "metadata_json": {
-         "authors": "string",
-         "keywords": "string",
-         "series_report_no": "string",
-         "issue_date": "string"
+      "metadata": {
+         "exam_month": "number|null",
+         "exam_year": "number|null",
+         "semester": ["number", "..."],
+         "page_found": "number|null"
       },
       "created_at": "iso-datetime",
       "course": {
