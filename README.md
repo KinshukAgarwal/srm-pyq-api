@@ -22,6 +22,8 @@ This folder contains only the files needed to run and deploy the SRM Resources A
 - `GET /v1/papers/{paper_id}/files`
 - `GET /v1/files/{file_id}/download?ttl_seconds=900`
 
+`q` in `/v1/courses` matches `course_code`, `course_name`, and `course_abbreviation` (when the column is present).
+
 ## Local Run
 
 ```bash

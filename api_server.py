@@ -17,6 +17,7 @@ from botocore.client import Config as BotoConfig
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from postgrest.exceptions import APIError
 from supabase import create_client
 
 
@@ -162,20 +163,40 @@ def health() -> dict[str, Any]:
 
 @app.get("/v1/courses")
 def list_courses(
-    q: str = Query(default="", description="Search by course_code/course_name"),
+    q: str = Query(default="", description="Search by course_code/course_name/course_abbreviation"),
     cursor: str = Query(default="", description="Cursor = last seen course_code"),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> dict[str, Any]:
     query = supabase.table("courses").select(COURSE_FIELDS)
+    search_filter = ""
 
     if q:
         escaped = q.replace(",", " ")
-        query = query.or_(f"course_code.ilike.%{escaped}%,course_name.ilike.%{escaped}%")
+        search_filter = (
+            f"course_code.ilike.%{escaped}%,"
+            f"course_name.ilike.%{escaped}%,"
+            f"course_abbreviation.ilike.%{escaped}%"
+        )
+        query = query.or_(search_filter)
 
     if cursor:
         query = query.gt("course_code", cursor)
 
-    response = query.order("course_code").limit(limit + 1).execute()
+    try:
+        response = query.order("course_code").limit(limit + 1).execute()
+    except APIError as exc:
+        # Backward-compatible fallback for environments where migration wasn't applied yet.
+        if q and exc.code == "42703":
+            fallback_query = supabase.table("courses").select(COURSE_FIELDS)
+            fallback_escaped = q.replace(",", " ")
+            fallback_query = fallback_query.or_(
+                f"course_code.ilike.%{fallback_escaped}%,course_name.ilike.%{fallback_escaped}%"
+            )
+            if cursor:
+                fallback_query = fallback_query.gt("course_code", cursor)
+            response = fallback_query.order("course_code").limit(limit + 1).execute()
+        else:
+            raise
     rows = response.data or []
     has_more = len(rows) > limit
     if has_more:
